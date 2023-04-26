@@ -1,0 +1,481 @@
+---
+title: "Data Bank Analysis"
+author: "MFFaqih"
+date: "2023-03-07"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    number_section: true
+    collapsed: false
+    smooth_scroll: false
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Import Library and Data Reading
+
+```{r warning = F, message = F}
+library(dplyr)
+library(ggplot2)
+library(ggplot2)
+library(plotly)
+library(gridExtra)
+library(tidyr)
+library(tibble)
+library(rsconnect)
+```
+
+```{r}
+bank <- read.csv("data_input/bank-additional-full.csv", sep = ";", stringsAsFactors = T)
+bank
+```
+
+Column Description
+- age (numeric)
+- job            : type of job (categorical:'admin.', 'blue-collar', 'entrepreneur', 'housemaid', 'management', 'retired', self-'employed', 'services', 'student', 'technician', 'unemployed', 'unknown')
+- marital        : marital status (categorical: 'divorced','married','single','unknown'; note: 'divorced' means divorced or widowed)
+- education      : (categorical: 'basic.4y', 'basic.6y', 'basic.9y', 'high.school', 'illiterate', 'professional.course', 'university.degree', 'unknown')
+- default        : has credit in default? (categorical: 'no, yes, 'unknown')
+- housing        : has housing loan? (categorical: 'no', 'yes', 'unknown')
+- loan           : has personal loan? (categorical: 'no', 'yes', 'unknown')
+
+Related with the Last Contact of the Current Campaign:
+- contact        : contact communication type (categorical: 'cellular', 'telephone')
+- month          : last contact month of year (categorical: 'jan', 'feb', 'mar', ..., 'nov', 'dec')
+- day_of_week    : last contact day of the week (categorical: 'mon', 'tue', 'wed', 'thu', 'fri')
+- duration       : last contact duration, in seconds (numeric). Important note: this attribute highly affects the output target (e.g., if duration=0 then y='no'). Yet, the duration is not known before a call is performed. Also, after the end of the call y is obviously known. Thus, this input should only be included for benchmark purposes and should be discarded if the intention is to have a realistic predictive model.
+
+Other Attributes:
+- campaign       : number of contacts performed during this campaign and for this client (numeric, includes last contact)
+- pdays          : number of days that passed by after the client was last contacted from a previous campaign (numeric; 999 means client was not previously contacted)
+- previous       : number of contacts performed before this campaign and for this client (numeric)
+- poutcome       : outcome of the previous marketing campaign (categorical: 'failure', 'nonexistent', 'success')
+
+Social and Economic Context Attributes
+- emp.var.rate   : employment variation rate - quarterly indicator (numeric)
+- cons.price.idx : consumer price index - monthly indicator (numeric)
+- cons.conf.idx  : consumer confidence index - monthly indicator (numeric)
+- euribor3m      : euribor 3 month rate - daily indicator (numeric)
+- nr.employed    : number of employees - quarterly indicator (numeric)
+
+Output Variable (desired target):
+- 21 - y - has the client subscribed a term deposit? (binary: 'yes','no')
+
+
+
+# Data Coertion
+
+```{r}
+glimpse(bank)
+```
+
+All data already in their appropriate data type
+
+
+# Data Preprocessing
+
+## Missing Value Checking
+
+```{r}
+colSums(is.na(bank))
+```
+
+
+## Checking for Outliers
+
+```{r}
+summary(bank)
+```
+
+  From summary above, theres some value that has probability as outliers, but i think every value are matter so i decided to keep all of it.
+
+# Creating Age Range for Better Interpretation
+
+```{r}
+age.range <- function(x){
+  if (x <= 10 & x >= 1 ){
+    y <- "1 - 10"
+  }
+  else if (x >= 11 & x <= 20){
+    y <- "11 - 20 years"
+  }
+  else if (x >= 21 & x <= 30){
+    y <- "21 - 30 years"
+  }
+  else if (x >= 31 & x <= 40){
+    y <- "31 - 40 years"
+  }
+  else if (x >= 41 & x <= 50){
+    y <- "41 - 50 years"
+  }
+  else if (x >= 51 & x <= 60){
+    y <- "51 - 60 years"
+  }
+  else if (x >= 61 & x <= 70){
+    y <- "61 - 70 years"
+  }
+  else if (x >= 71 & x <= 80){
+    y <- "71 - 80 years"
+  }
+  else if (x >= 81 & x <= 90){
+    y <- "81 - 90 years"
+  }
+  else{
+    y <- "91 - 100 years"
+  }
+  
+  return(y)
+}
+
+bank$age_range <- as.factor(sapply(bank$age, FUN = age.range))
+```
+
+
+# Group of People that do Subscribe in Term of Deposit
+
+```{r}
+subscribe <- bank %>% 
+  mutate(day_of_week = factor(day_of_week, levels = c("mon", "tue", "wed", "thu", "fri"))) %>% 
+  filter(y == "yes")
+```
+
+
+## People's Age of Range that Subscribe in Term of Deposit
+
+```{r}
+table(subscribe$age_range)
+```
+
+```{r}
+prop.table(table(subscribe$age_range))
+```
+
+```{r fig.width=10}
+ggplot(data = subscribe, mapping = aes(x = age_range)) +
+  geom_bar()+
+  labs(title = "Age's Range that Subscribe in Term of Deposit") +
+  theme_minimal()
+```
+
+From bar plot above, we know that age range of 31-40 years subscribe the most of term deposit. For further campaign event, bank can focus in this age group for better result.
+
+
+## Job of People That Subscribe in Term of Deposit
+
+I am eliminating unknown value in job column because we only want to know which people's job that has term of deposit in bank
+```{r}
+job_subscribe <- subscribe %>%
+  filter(job != "unknown") %>% 
+  droplevels()
+```
+
+```{r}
+table(job_subscribe$job)
+```
+
+```{r}
+prop.table(table(job_subscribe$job))
+```
+
+```{r fig.width=10}
+ggplot(data = job_subscribe, mapping = aes(x = job)) +
+  geom_bar()+
+  labs(title = "People's Job that Subscribe in Term of Deposit") +
+  theme_minimal()
+```
+
+  From the result we can say, people who work as an Admin most likely to have Term of Deposit In bank. Surprisingly it's number even bigger than management or entrepreneur where these two group of people sometimes need to save more of their money in the bank to get more profit form bank's interest rate.
+
+
+## Do Level of Education Influence People's Interest to Have Deposit in Bank?
+
+  Educational column contain 7 type of educational level, they are: basic 4y, basic 6y, basic 9y, high school, illiterate, professional course and university degree. Sicne theres unknow value in Educational column, I'll dispose unknown value form this column to know wich educational level of person that has deposit the most in bank.
+
+```{r}
+bank_edu <- subscribe %>% 
+  filter(education != "unknown") %>% 
+  droplevels()
+```
+
+```{r}
+table(bank_edu$education)
+```
+
+```{r}
+prop.table(table(bank_edu$education))
+```
+  Peoples that has university degree has higher frequency that loaning money from bank. Meanwhile, illiterate is group of people that have least loan to the bank
+
+```{r fig.width=10}
+ggplot(data = bank_edu, mapping = aes(x = education)) +
+  geom_bar()+
+  labs(title = "People's Educational Level that Subscribe in Term of Deposit") +
+  theme_minimal()
+```
+
+  From plot above we know that people who has university degree has the most deposit in bank. Maybe this because people who has higher educational degree know more about money knowledge than other people with different educational level. This goes along with illiterate that has least number of people who have deposit in bank. Another reasons why higher educational degree has more people who deposit their money in Bank is higher educational level will come along with higher possibility to get better job and better salary.
+
+
+## Another Gorup of People that has Deposit in Bank (Credit Default, Housing Loan, Personal Loan)
+
+```{r}
+default_bank <- subscribe %>% 
+  filter(default != "unknown") %>% 
+  droplevels()
+```
+
+```{r}
+housing_bank <- subscribe %>% 
+  filter(housing != "unknown") %>% 
+  droplevels()
+```
+
+```{r}
+loan_bank <- subscribe %>% 
+  filter(loan != "unknown") %>% 
+  droplevels()
+```
+
+```{r fig.width= 10}
+plot1 <- ggplot(data = default_bank, mapping = aes(x = default)) +
+  geom_bar() +
+  labs(title = "Did Someone Who has Credit Default have Deposit in Bank?") +
+  theme_minimal()
+
+plot2 <- ggplot(data = housing_bank, mapping = aes(x = housing)) +
+  geom_bar() +
+  labs(title = "Group of People Who Have Bank Deposit Who has Housing Loan or Not") +
+  theme_minimal()
+
+plot3 <- ggplot(data = loan_bank, mapping = aes(x = loan)) +
+  geom_bar() +
+  labs(title = "People's Educational Level that Subscribe in Term of Deposit") +
+  theme_minimal()
+
+grid.arrange(plot1, plot2, plot3)
+```
+
+```{r}
+default_table <- table(default_bank$default)
+housing_table <- table(housing_bank$housing)
+loan_table <- table(loan_bank$loan)
+
+df1 <- as.data.frame(housing_table) %>% 
+  spread(Var1, Freq) %>% 
+  rownames_to_column(var = "Var") %>% 
+  rename(people_group = Var) 
+
+df1$people_group <- paste0("housing", df1$people_group)
+
+df2 <- as.data.frame(loan_table) %>% 
+  spread(Var1, Freq) %>% 
+  rownames_to_column(var = "Var") %>% 
+  rename(people_group = Var)
+
+df2$people_group <- paste0("loan", df2$people_group)
+
+df3 <- as.data.frame(default_table) %>% 
+  spread(Var1, Freq) %>% 
+  rownames_to_column(var = "Var") %>% 
+  rename(people_group = Var)
+
+df3$people_group <- paste0("default", df3$people_group)
+
+df3$yes <- 0
+
+df <- rbind(df1, df2, df3)
+df$people_group[df$people_group == "housing1"] <- "housing"
+df$people_group[df$people_group == "loan1"] <- "loan"
+df$people_group[df$people_group == "default1"] <- "default"
+
+df
+```
+
+  From our analysis above, we can say that more people who have housing loan have deposit in bank rather than people who don't. Its counter intuitive if we look at group of people who have personal loan and credit default, By logic people who don't have personal loan or credit default will be much easier for them to set aside money to saving.
+
+
+## Relationship Between Group of People
+
+  From analysis before we can know distribution of people who has deposit in bank. I'll combine some columns to see more specific about distribution of peoples group that subscribe into term of deposit. I'll only use the higher frequency from each group to see the result
+
+### Educational Level and Job
+
+```{r fig.width=9}
+edu_job <- subscribe %>% 
+  select(education, job) %>% 
+  filter(education == "university.degree")
+
+ggplot(data = edu_job, mapping = aes(x = job)) +
+  geom_bar() +
+  labs(title = "Group of Working People that has University Degre") +
+  theme_minimal()
+```
+  
+  From plot above, we still have admin as the highest group of people that has term of deposit in bank with university degree background, followed by technician and management. What about age range of people around 31-40 years old? 
+  
+### People's Job with University Degree Around 31 - 40 Years Old
+
+```{r fig.width=9}
+bank_age <- subscribe %>% 
+  filter(age_range == "31 - 40 years",
+         education == "university.degree")
+
+ggplot(data = bank_age, mapping = aes(x = job)) +
+  geom_bar() +
+  labs(title = "Group of Working People that has University Degre Around 31 - 40 Years Old") +
+  theme_minimal()
+```
+
+  Still, we have same result as before, where admin is the higher group of people that subscribe in term of deposit with university degree aroud 31 - 40 years old.
+  
+
+# Bank Effort in Contacting their Costumer
+
+  In order to get consumer to subscribe in term of deposit, bank always contacting their costumer to explain and persuade them to have a deposit in their bank. So I'll try to analyze if contact duration or day passed since the last time bank contacting their costumer has effect in better result.
+
+## Frequency of Last Month Since Costumer Contacted
+
+```{r}
+table(subscribe$month)
+```
+
+  Fix Month order
+
+```{r}
+month_bank <- subscribe %>% 
+  mutate(month = factor(month, levels = c("mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")))
+```
+
+
+```{r}
+ggplot(data = month_bank, mapping = aes(x = month)) +
+  geom_bar() +
+  labs(title = "Last Month Since Costumer Contacted") +
+  theme_minimal()
+```
+
+  Our data was collected between May 2008 until November 2010, since there's no obvious date provided, we assume all activity happened in a year.
+
+  From plot above, we know when consumer last contacted in May, July and August has highest number who subscribe in term of deposit, so I will focus in this three months.
+
+## Day of Week
+
+  Is there specific days when bank contact their consumer that effect the result consumer do subscribe in term of deposit?
+
+```{r}
+day_month <- month_bank %>% 
+  select(month, day_of_week) %>% 
+  filter(month %in% c("may", "jul", "aug")) %>% 
+  group_by(month, day_of_week) %>% 
+  count() %>% 
+  ungroup() %>% 
+  arrange(month, desc(n)) %>% 
+  mutate(total = n)
+```
+
+  Specific day in May
+  
+```{r}
+may_month <- day_month %>% 
+  filter(month == "may")
+```
+
+```{r}
+ggplot(data = may_month, mapping = aes(x = day_of_week, y = total)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Specific Day in May") +
+  theme_minimal()
+```
+
+  Specific day in July
+  
+```{r}
+jul_month <- day_month %>% 
+  filter(month == "jul")
+```
+
+```{r}
+ggplot(data = jul_month, mapping = aes(x = day_of_week, y = total)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Specific Day in July") +
+  theme_minimal()
+```
+
+  Specific day in August
+  
+```{r}
+aug_month <- day_month %>% 
+  filter(month == "aug")
+```
+
+```{r}
+ggplot(data = aug_month, mapping = aes(x = day_of_week, y = total)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Specific Day in August") +
+  theme_minimal()
+```
+
+  From three plot above, I can say there's no specific day when the last day people getting contacted by bank and do subscribe in term of deposit. Each day has same probability to give sam result for bank.
+
+## Duration of Contact
+
+  In order to know whether duration while bank contacting their consumer will affecting the result people do subscribe in term of deposit, I'll focusing the analysis in three top months each day
+
+
+```{r}
+may_duration <- subscribe %>% 
+  filter(month == "may",
+         duration != 0) %>% 
+  select(month, day_of_week, duration)
+
+jul_duration <- subscribe %>% 
+  filter(month == "jul",
+         duration != 0) %>% 
+  select(month, day_of_week, duration)
+
+aug_duration <- subscribe %>% 
+  filter(month == "aug",
+         duration != 0) %>% 
+  select(month, day_of_week, duration)
+```
+
+```{r warning=F}
+ggplot(may_duration, aes(day_of_week, duration)) +
+  geom_jitter(aes(col = may_duration$duration)) +
+  geom_boxplot(alpha = 0.5) +
+  labs(title = "Call Duration Each Day in May", x= "Week Days", y= "Duration")
+```
+
+```{r warning=F}
+ggplot(jul_duration, aes(day_of_week, duration)) +
+  geom_jitter(aes(col = jul_duration$duration)) +
+  geom_boxplot(alpha = 0.5) +
+  labs(title = "Call Duration Each Day in July", x= "Week Days", y= "Duration")
+```
+
+```{r warning=F}
+ggplot(aug_duration, aes(day_of_week, duration)) +
+  geom_jitter(aes(col = aug_duration$duration)) +
+  geom_boxplot(alpha = 0.5) +
+  labs(title = "Call Duration Each Day in Aug", x= "Week Days", y= "Duration")
+```
+
+  From all three plot above, my conclusion is bank didn't have to do long duration while contacting their consumer. From 3 top months, all calls duration are beneath 1000 second (around 17 minutes), only few calls performed above that. So for further communication between bank and consumer, it's better to do it beneath 1000 second
+
+# Final Conclusion
+
+  My final conclusion from above analysis is:
+
+1. In order to get more consumer who subscribe in term of deposit, bank can focusing in group people around 31-40 years old. In this age of range, people start to planning their financial fo various needed, so have a deposit is one of the best option
+
+2. Consumer who has university degree tend to have deposit in bank, maybe they have more knowledge about money literation
+
+3. Consumer who work as admin is the higher job where people has deposit in bank
+
+4. There's no specific day where consumer get contacted by bank and do subscribe in term of deposit
+
+5. Most call duration where consumer finally do subscribe perform under 1000 seconds (around 17 minutes)
